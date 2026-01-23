@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- 保留QGIS导出的所有原有样式（必须） -->
+    <link rel="stylesheet" href="./resources/ol.css">
+    <link rel="stylesheet" href="resources/fontawesome-all.min.css">
+    <link href="resources/photon-geocoder-autocomplete.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="./resources/ol-layerswitcher.css">
+    <link rel="stylesheet" href="./resources/qgis2web.css">
+    <!-- 仅引入一次Bootstrap（避免冲突） -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- 合并所有CSS样式（消除重复+底图样式+布局样式+弹窗样式） -->
+    <style>
+        /* 基础样式：QGIS原有样式保留+优化 */
+        html, body {
+            background-color: #ffffff;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: "Microsoft YaHei";
+            box-sizing: border-box;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: inherit;
+        }
+
+        .ol-control > * {
+            background-color: #f8f8f8 !important;
+            color: #444444 !important;
+            border-radius: 0px;
+        }
+
+        .ol-attribution a, .gcd-gl-input::placeholder, .search-layer-input-search::placeholder {
+            color: #444444 !important;
+        }
+
+        .search-layer-input-search {
+            background-color: #f8f8f8 !important;
+        }
+
+        .ol-control > *:focus, .ol-control > *:hover {
+            background-color: rgba(248, 248, 248, 0.7) !important;
+        }
+
+        .ol-control {
+            background-color: rgba(255,255,255,.4) !important;
+            padding: 2px !important;
+        }
+
+        /* 核心：左侧面板+右侧地图布局（统一350px面板宽度） */
+        .left-panel {
+            width: 350px;
+            height: 100%;
+            padding: 20px;
+            float: left;
+            border-right: 1px solid #eee;
+            background: #f8f9fa;
+            overflow-y: auto;
+        }
+
+        .map-container {
+            width: calc(100% - 350px);
+            height: 100%;
+            float: left;
+        }
+
+        /* 面板内样式：按钮、下拉框、结果区、标题 */
+        .panel-item {
+            width: 100%;
+            margin-bottom: 15px;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .panel-result {
+            margin: 15px 0;
+            padding: 15px;
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+
+        .panel-title {
+            text-align: center;
+            color: #2E8B57;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .helper-title {
+            color: #198754;
+            margin: 20px 0 10px 0;
+            font-weight: 600;
+        }
+
+        .download-area {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed #eee;
+        }
+
+        /* 地图容器核心样式：必须！配合底图伪元素+QGIS地图渲染 */
+        #map {
+            width: 100%;
+            height: 100%;
+            position: relative !important; /* 伪元素定位基础，强制生效 */
+            z-index: 0;
+        }
+            /* 终极有效：高德电子底图背景（CSS伪元素，绕开所有QGIS/OpenLayers限制） */
+            #map::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: -1; /* 强制在生态图层下方，不遮挡 */
+                background-image: url(https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=0&y=0&z=10);
+                background-attachment: fixed;
+                background-repeat: repeat;
+                opacity: 0.85; /* 微调透明度，底图更清晰又不抢生态图层风头 */
+                pointer-events: none; /* 避免底图遮挡地图的点击/缩放交互 */
+            }
+
+        /* QGIS导出的弹窗样式（保留，确保点击行政区弹窗正常） */
+        .ol-popup {
+            position: absolute;
+            background-color: white;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #cccccc;
+            bottom: 12px;
+            left: -50px;
+            min-width: 280px;
+            z-index: 999; /* 确保弹窗在最上层 */
+        }
+
+            .ol-popup:after, .ol-popup:before {
+                top: 100%;
+                border: solid transparent;
+                content: " ";
+                height: 0;
+                width: 0;
+                position: absolute;
+                pointer-events: none;
+            }
+
+            .ol-popup:after {
+                border-top-color: white;
+                border-width: 10px;
+                left: 48px;
+                margin-left: -10px;
+            }
+
+            .ol-popup:before {
+                border-top-color: #cccccc;
+                border-width: 11px;
+                left: 48px;
+                margin-left: -11px;
+            }
+
+        .ol-popup-closer {
+            text-decoration: none;
+            position: absolute;
+            top: 2px;
+            right: 8px;
+        }
+
+            .ol-popup-closer:after {
+                content: "✖";
+            }
+    </style>
+
+    <title>青岛绿地生态质量分析平台（2022-2024）</title>
+</head>
+<body>
+    <!-- 左侧交互面板：整合所有功能（筛选+统计+生态助手+数据下载） -->
+    <div class="left-panel">
+        <h2 class="panel-title">青岛绿地生态质量评价</h2>
+        <p class="text-muted text-center mb-3">点击行政区查看详细数据<br>筛选后可统计等级分布</p>
+
+        <!-- 优/中/差筛选下拉框（补全缺失元素，无全部选项） -->
+        <select class="panel-item form-select" id="gradeSelect">
+            <option value="优" selected>优</option>
+            <option value="中">中</option>
+            <option value="差">差</option>
+        </select>
+
+        <!-- 统计等级分布按钮（补全缺失元素） -->
+        <button class="panel-item btn btn-success" id="statBtn">统计等级分布</button>
+
+        <!-- 统计结果展示区（补全缺失元素） -->
+        <div class="panel-result" id="statResult">
+            选择生态等级，点击上方按钮<br>查看统计结果+地图筛选显示
+        </div>
+
+        <!-- 绿地生态助手（修正NDVI取值描述） -->
+        <h4 class="helper-title">绿地生态助手</h4>
+        <p>1. NDVI（归一化植被指数）：取值[0,1]，值越高表示植被越健康；</p>
+        <p>2. 植被覆盖占比：0%-100%，反映绿地覆盖程度；</p>
+        <p>3. 生态评分等级：优（≥0.48）、中（0.30-0.40）、差（< 0.30）；</p>
+
+        <!-- 数据下载区 -->
+        <div class="download-area">
+            <h4 class="helper-title">数据下载区</h4>
+            <p>点击下载原始数据：<a href="生态评价数据.csv" download class="text-primary">生态评价数据.csv</a></p>
+        </div>
+    </div>
+
+    <!-- 右侧地图容器：包裹QGIS原有地图（确保100%高度） -->
+    <div class="map-container">
+        <div id="map">
+            <div id="popup" class="ol-popup">
+                <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+                <div id="popup-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QGIS导出的所有核心脚本（必须保留，位置不变） -->
+    <script src="resources/qgis2web_expressions.js"></script>
+    <script src="./resources/functions.js"></script>
+    <script src="./resources/ol.js"></script>
+    <script src="./resources/ol-layerswitcher.js"></script>
+    <script src="resources/photon-geocoder-autocomplete.min.js"></script>
+    <script src="layers/_0.js"></script>
+    <script src="layers/__1.js"></script>
+    <script src="styles/_0_style.js"></script>
+    <script src="styles/__1_style.js"></script>
+    <script src="./layers/layers.js" type="text/javascript"></script>
+    <script src="./resources/Autolinker.min.js"></script>
+    <script src="./resources/qgis2web.js"></script>
+
+    <!-- 自定义交互JS：筛选+统计联动（简化无效代码，确保执行） -->
+    <script>
+        // 适配QGIS属性表的生态等级字段名（确认一致即可）
+        const GRADE_FIELD = "生态评分等级";
+
+        // 等待页面+地图完全加载
+        window.onload = function () {
+            setTimeout(function () {
+                // 1. 获取交互元素
+                const gradeSelect = document.getElementById("gradeSelect");
+                const statBtn = document.getElementById("statBtn");
+                const statResult = document.getElementById("statResult");
+                // 2. 获取QGIS的OpenLayers地图实例
+                const map = window.olMap || window.map;
+                if (!map) {
+                    statResult.innerHTML = `<div style="color:#dc3545;">地图加载失败！</div>`;
+                    return;
+                }
+
+                // ---------- 新增：添加真实高德地图底图（带道路/地名） ----------
+                const gaodiBaseLayer = new ol.layer.Tile({
+                    source: new ol.source.XYZ({
+                        url: "https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}",
+                        subdomains: ["1", "2", "3", "4"],
+                        projection: "EPSG:3857"
+                    }),
+                    zIndex: 0 // 底图放在最底层
+                });
+                // 插入底图到地图最底层
+                map.getLayers().insertAt(0, gaodiBaseLayer);
+                // ----------------------------------------------------------------
+
+                // 3. 定位生态目标图层
+                let targetLayer = null;
+                map.getLayers().forEach(layer => {
+                    if (layer.getSource && layer.getSource().getFeatures && layer.getSource().getFeatures().length > 0) {
+                        targetLayer = layer;
+                        targetLayer.setZIndex(1); // 确保生态图层在底图上方
+                    }
+                });
+                if (!targetLayer) {
+                    statResult.innerHTML = `<div style="color:#dc3545;">未找到生态图层！</div>`;
+                    return;
+                }
+                const allFeatures = targetLayer.getSource().getFeatures();
+
+                // 下拉框筛选
+                gradeSelect.onchange = function () {
+                    const selectedGrade = this.value;
+                    allFeatures.forEach(feat => {
+                        feat.setVisible(feat.getProperties()[GRADE_FIELD] === selectedGrade);
+                    });
+                };
+
+                // 统计+地图筛选
+                statBtn.onclick = function () {
+                    const selectedGrade = gradeSelect.value;
+                    const statData = { 优: 0, 中: 0, 差: 0, 总计: 0 };
+                    allFeatures.forEach(feat => {
+                        const grade = feat.getProperties()[GRADE_FIELD];
+                        if (statData.hasOwnProperty(grade)) {
+                            statData[grade]++;
+                            statData.总计++;
+                        }
+                    });
+                    const selectedCount = statData[selectedGrade];
+                    const selectedRatio = statData.总计 > 0 ? ((selectedCount / statData.总计) * 100).toFixed(1) : 0;
+                    allFeatures.forEach(feat => {
+                        feat.setVisible(feat.getProperties()[GRADE_FIELD] === selectedGrade);
+                    });
+                    statResult.innerHTML = `
+                        <strong class="text-center d-block" style="color:#2E8B57;">【${selectedGrade}】等级统计结果</strong>
+                        <hr style="margin:8px 0;">
+                        <div style="font-size:16px; font-weight:bold;">${selectedCount}个行政区</div>
+                        <div>占比：${selectedRatio}%</div>
+                        <hr>
+                        <div style="color:#6c757d;">总计：${statData.总计}个行政区</div>
+                    `;
+                };
+            }, 500);
+        };
+    </script>
+</body>
+</html>
