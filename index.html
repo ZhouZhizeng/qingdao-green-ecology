@@ -272,22 +272,22 @@
                     zIndex: 0 // 底图放在最底层
                 });
                 // 插入底图到地图最底层
-                map.getLayers().insertAt(0, gaodiBaseLayer);
+                map.getlayers().insertAt(0, gaodiBaselayer);
                 // ----------------------------------------------------------------
 
                 // 3. 定位生态目标图层
                 let targetLayer = null;
-                map.getLayers().forEach(layer => {
+                map.getlayers().forEach(layer => {
                     if (layer.getSource && layer.getSource().getFeatures && layer.getSource().getFeatures().length > 0) {
-                        targetLayer = layer;
-                        targetLayer.setZIndex(1); // 确保生态图层在底图上方
+                        targetlayer = layer;
+                        targetlayer.setZIndex(1); // 确保生态图层在底图上方
                     }
                 });
-                if (!targetLayer) {
+                if (!targetlayer) {
                     statResult.innerHTML = `<div style="color:#dc3545;">未找到生态图层！</div>`;
                     return;
                 }
-                const allFeatures = targetLayer.getSource().getFeatures();
+                const allFeatures = targetlayer.getSource().getFeatures();
 
                 // 下拉框筛选
                 gradeSelect.onchange = function () {
@@ -326,4 +326,5 @@
         };
     </script>
 </body>
+
 </html>
