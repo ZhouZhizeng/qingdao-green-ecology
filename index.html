@@ -272,12 +272,12 @@
                     zIndex: 0 // 底图放在最底层
                 });
                 // 插入底图到地图最底层
-                map.getlayers().insertAt(0, gaodiBaselayer);
+                map.getLayers().insertAt(0, gaodiBaselayer);
                 // ----------------------------------------------------------------
 
                 // 3. 定位生态目标图层
                 let targetLayer = null;
-                map.getlayers().forEach(layer => {
+                map.getLayers().forEach(layer => {
                     if (layer.getSource && layer.getSource().getFeatures && layer.getSource().getFeatures().length > 0) {
                         targetlayer = layer;
                         targetlayer.setZIndex(1); // 确保生态图层在底图上方
@@ -328,6 +328,7 @@
 </body>
 
 </html>
+
 
 
 
